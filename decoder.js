@@ -23,8 +23,12 @@ let A_BATTERY_END_OF_LIFE = 0x0C;
 let A_HORN_DRIVE_LEVEL_FAILURE = 0x16;
 let A_OBSTRUCTION_DETECTION = 0x1A;
 let A_OBJECT_IN_THE_SURROUNDING_AREA = 0x1C;
-let ap_values = ["removal", "battery end of life",
+let AP_VALUES = ["removal", "battery end of life",
     "horn drive level failure", "obstruction detection", "object in the surrounding area"];
+let S_STATUS_SUMMERY_VALUES = ["removal", undefined,
+    "battery end of life", "acoustic alarm failure",
+    "obstruction detection", "surrounding area monitoring"];
+
 
 /**
  * decodes date (EN13757-3:2013, Annex A, data type G).
@@ -52,7 +56,7 @@ function decodeDateAndTime(bytes) {
     let hour = (bytes & 0x001F0000) >> 16;
     let day = (bytes & 0x00001F00) >> 8;
     let month = (bytes & 0x0000000F);
-    let year = ((bytes & 0x0000E000) >> 10) | ((bytes & 0x000000F0) >> 4); //TODO fix HYF (Hundred Year Format)
+    let year = ((bytes & 0x0000E000) >> 10) | ((bytes & 0x000000F0) >> 4);
     return "20" + year.toString() + "-"
         + month.toString() + "-"
         + day.toString() + "T"
@@ -62,28 +66,44 @@ function decodeDateAndTime(bytes) {
 }
 
 /**
+ *
+ * @param byteArray
+ * @returns {string}
+ */
+function payloadRawHexToString(byteArray) {
+    let str = Array.from(byteArray, function (byte) {
+        return ('0' + (byte & 0xFF).toString(16)).slice(-2);
+    }).join('');
+    let strArray = str.match(/.{2}/g);
+    str = strArray.map(function (value, index, array) {
+        return array[index];
+    });
+    let x = str.join();
+    return x.replace(/([,])/g, " ").toLocaleUpperCase();
+}
+
+/**
  * Build the summary for package 9.1.
  * @param a
  * @param b
  * @returns {[]}
  */
 function buildStatusSummery(a, b) {
-    let values = ["removal", undefined,
-        "battery end of life", "acoustic alarm failure",
-        "obstruction detection", "surrounding area monitoring"];
-    let bin1 = (convertNumber(a.toString(16), 16, 2));
-    let bin2 = (convertNumber(b.toString(16), 16, 2));
+
+    let bin1 = parseInt(a.toString(),16).toString(2);
+    let bin2 = parseInt(b.toString(),16).toString(2);
     let result = [];
 
     for (let i = 0; i < bin1.length; i++) {
+        console.log(bin1.length);
         if (bin1[i] === "1") {
-            result.push(values[i]);
+            result.push(S_STATUS_SUMMERY_VALUES[i]);
         }
     }
 
     for (let i = 0; i < bin2.length; i++) {
         if (bin2[i] === "1") {
-            result.push(values[i]);
+            result.push(S_STATUS_SUMMERY_VALUES[i]);
         }
     }
 
@@ -91,123 +111,97 @@ function buildStatusSummery(a, b) {
 }
 
 /**
- * Used in status_summery
- * @param n
- * @param fromBase
- * @param toBase
- * @returns {string}
- */
-function convertNumber(n, fromBase, toBase) {
-    if (fromBase === void 0) {
-        fromBase = 10;
-    }
-    if (toBase === void 0) {
-        toBase = 10;
-    }
-    return parseInt(n.toString(), fromBase).toString(toBase);
-}
-
-/**
  * Main decoder function
  * @param bytes
+ * @param port
  * @constructor
  */
-function Decoder(bytes) {
-    //TODO include port in function call -> function Decoder(bytes, port) {...}
+function Decoder(bytes, port) {
     let obj = {};
+    obj.port = port;
 
     switch (bytes[0] >> 4) {
         case TYPE_SP1:
+            //const casePosition = "SP1";
             obj.packet_type = 1;
             obj.packet_subtype = 0;
-            obj.packet_type_info = "sync";
-            obj.timestamp = null;
-            obj.status_interpretation = null;
-            obj.status_dedcoded = true;
-            obj.status_info = null;
+            obj.packet_type_info = "synchronous";
+            //obj.status_interpretation = null;
+            obj.status_dedcoded = false;
+            obj.status_info = "payload_raw: " + payloadRawHexToString(bytes);
+            //obj.decodingTree = [casePosition];
             break;
         case TYPE_SP9:
             obj.packet_type = 9;
-            obj.packet_subtype = null;
-            obj.packet_type_info = "sync";
-            obj.timestamp = null;
-            obj.status_interpretation = null;
-            obj.status_dedcoded = true;
-            obj.status_info = null;
+            obj.packet_type_info = "synchronous";
+            obj.status_dedcoded = false;
+            // check for packet subtype SP9.1 and SP9.2
+            switch (bytes[0] & 0x0F) {
+                case SUBTYPE_SP9_1:
+                    obj.packet_subtype = 1;
+                    obj.dateTime = decodeDateAndTime(((bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | (bytes[4])));
+                    //TODO make a function to check is the device in correct dateAndTime
+                    obj.status_interpretation = buildStatusSummery(bytes[5], bytes[6]);
+                    obj.status_dedcoded = true;
+                    obj.status_info = "payload_raw: " + payloadRawHexToString(bytes);
+                    break;
+                case SUBTYPE_SP9_2:
+                    obj.packet_subtype = 2;
+                    obj.status_interpretation = [
+                        "firmware version: " + (
+                            ((bytes[1] << 24) + (bytes[2] << 16) + (bytes[3] << 8) + (bytes[4]))
+                                .toString(16)).toUpperCase(),
+                        "LoRa WAN version: " + (bytes[5]).toString(16) + "." + (bytes[6])
+                            .toString(16) + "." + (bytes[7]).toString(16),
+                        "LoRa command version: " + (bytes[9]).toString(16) + "." + (bytes[8]).toString(16),
+                        "device type: " + (bytes[10]).toString(16),
+                        "meter ID: " + (((bytes[11] << 24) + (bytes[12] << 16) + (bytes[13] << 8) + (bytes[14]))
+                            .toString(16)).toUpperCase()
+                    ];
+                    obj.status_dedcoded = true;
+                    obj.status_info = "payload_raw: " + payloadRawHexToString(bytes);
+                    break;
+                default:
+                    obj.status_dedcoded = false;
+                    obj.status_info = "payload_raw: " + payloadRawHexToString(bytes);
+                    break;
+            }
             break;
         case TYPE_AP1:
             obj.packet_type = 1;
             obj.packet_subtype = 0;
-            obj.packet_type_info = "async";
-            obj.timestamp = null;
+            obj.packet_type_info = "asynchronous";
+            obj.date = (decodeDate(bytes [3] << 8 | bytes[4]));
             obj.status_interpretation = null;
             obj.status_dedcoded = true;
             obj.status_info = null;
+            obj.status_info = "payload_raw: " + payloadRawHexToString(bytes);
+
+            switch (bytes[1]) {
+                case A_REMOVAL:
+                    obj.status_interpretation = AP_VALUES[0];
+                    break;
+                case A_BATTERY_END_OF_LIFE:
+                    obj.status_interpretation = AP_VALUES[1];
+                    break;
+                case A_HORN_DRIVE_LEVEL_FAILURE:
+                    obj.status_interpretation = AP_VALUES[2];
+                    break;
+                case A_OBSTRUCTION_DETECTION:
+                    obj.status_interpretation = AP_VALUES[3];
+                    break;
+                case A_OBJECT_IN_THE_SURROUNDING_AREA:
+                    obj.status_interpretation = AP_VALUES[4];
+                    break;
+                default:
+                    obj.status_info = "payload_raw: " + payloadRawHexToString(bytes);
+
+            }
             break;
         default:
-            obj.packet_type = null;
-            obj.packet_subtype = null;
-            obj.packet_type_info = null;
-            obj.timestamp = null;
-            obj.status_interpretation = null;
             obj.status_dedcoded = false;
-            obj.status_info = "Error at point: " + 0 + "payload_raw: " + bytes;
+            obj.status_info = "payload_raw: " + payloadRawHexToString(bytes);
             break;
-    }
-
-    if (obj.packet_type === 9) {
-        switch (bytes[0] & 0x0F) {
-            case SUBTYPE_SP9_1:
-                obj.packet_subtype = 1;
-                obj.status_interpretation = buildStatusSummery(bytes[5], bytes[6]);
-                obj.timestamp = decodeDateAndTime(
-                    ((bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | (bytes[4]))
-                );
-                break;
-            case SUBTYPE_SP9_2:
-                obj.packet_subtype = 2;
-                obj.status_interpretation = [
-                    "firmware version: " + (
-                        ((bytes[1] << 24) + (bytes[2] << 16) + (bytes[3] << 8) + (bytes[4]))
-                            .toString(16)).toUpperCase(),
-                    "LoRa WAN version: " + (bytes[5]).toString(16) + "." + (bytes[6])
-                        .toString(16) + "." + (bytes[7]).toString(16),
-                    "LoRa command version: " + (bytes[9]).toString(16) + "." + (bytes[8]).toString(16),
-                    "device type: " + (bytes[10]).toString(16),
-                    "meter ID: " + (((bytes[11] << 24) + (bytes[12] << 16) + (bytes[13] << 8) + (bytes[14]))
-                        .toString(16)).toUpperCase()
-                ];
-                break;
-            default:
-                obj.status_dedcoded = false;
-                obj.status_info = "Error at point: " + 0 + "payload_raw: " + bytes;
-        }
-
-    } else if (obj.packet_type === 1 && obj.packet_type_info === "async") {
-        switch (bytes[1]) {
-            case A_REMOVAL:
-                obj.status_interpretation = ap_values[0];
-                obj.timestamp = (decodeDate(bytes [3] << 8 | bytes[4]));
-                break;
-            case A_BATTERY_END_OF_LIFE:
-                obj.status_interpretation = ap_values[1];
-                break;
-            case A_HORN_DRIVE_LEVEL_FAILURE:
-                obj.status_interpretation = ap_values[2];
-                break;
-            case A_OBSTRUCTION_DETECTION:
-                obj.status_interpretation = ap_values[3];
-                break;
-            case A_OBJECT_IN_THE_SURROUNDING_AREA:
-                obj.status_interpretation = ap_values[4];
-                obj.timestamp = (decodeDate((bytes [3] << 8) | bytes[4]));
-                break;
-            default:
-
-        }
-    } else if ((obj.packet_type === 1) && (obj.packet_type_info === "sync")) {
-        //TODO Implement the SP1 package interpretation...
-
     }
     return obj;
 }
