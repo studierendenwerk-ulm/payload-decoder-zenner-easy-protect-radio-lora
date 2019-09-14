@@ -104,8 +104,8 @@ Base64:<br> <label for="textInput"></label><textarea id="textInput"></textarea> 
      * The following code is for testing purposes only and does not apply to the decoder itself.
      ************************************************************************************************************/
     function decodeFromHTML() {
-        //let input = document.getElementById('textInput').value;
-        let input = "EQAAAAA= EQgAAAA= EQEAAAA= ERAAAAA= EQQAAAA= ERgAAAA= EQgAAAA= ERkAAAA= oAIAfSU= oBwAYSY= oBwAdyY= oBwAcyU= oAIAaCU= oAIAaSU= oAIAfig= khwAAQIBAAEQAAhn0zJTAAA= kSwAcCUAAAAAAAA= kSoAcCYgAAAAAAA= EQQAAAA= EQwAAAA= kScBRCEhAAAAAAA= khwAAQIBAAEQAAhn0zJTAAA= oAIASSE=";
+        let input = document.getElementById('textInput').value;
+        //let input = "EQAAAAA= EQgAAAA= EQEAAAA= ERAAAAA= EQQAAAA= ERgAAAA= EQgAAAA= ERkAAAA= oAIAfSU= oBwAYSY= oBwAdyY= oBwAcyU= oAIAaCU= oAIAaSU= oAIAfig= khwAAQIBAAEQAAhn0zJTAAA= kSwAcCUAAAAAAAA= kSoAcCYgAAAAAAA= EQQAAAA= EQwAAAA= kScBRCEhAAAAAAA= khwAAQIBAAEQAAhn0zJTAAA= oAIASSE=";
         let inOut = (input).split(" ");
         let inOutT = inOut.map(function (value,index,array) {
             return "# " + index + ": " + value + "<br>";
