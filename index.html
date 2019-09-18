@@ -7,9 +7,9 @@
 <body>
 
 <div class="header">
-    <h1>Here you can test your Payload Raw.</h1>
-    <p>Please enter payload_raw (Base64) from the TTN separated by spaces. <br>
-        Example: EQAAAAA= EQgAAAA= .. (delimiter is space!)"</p>
+    <h1>Here you can test raw payload.</h1>
+    <p>Please enter payload_raw (Base64), e.g. from TTN; optionally multiple separated by spaces. <br>
+        Example: EQAAAAA= EQgAAAA="</p>
 </div>
 
 Base64:<br> <label for="textInput"></label><textarea id="textInput"></textarea> <br>
@@ -96,13 +96,12 @@ Base64:<br> <label for="textInput"></label><textarea id="textInput"></textarea> 
 
 
 
+<script src="decoder.js"></script>
+
 <script>
 
 
 
-    /************************************************************************************************************
-     * The following code is for testing purposes only and does not apply to the decoder itself.
-     ************************************************************************************************************/
     function decodeFromHTML() {
         let input = document.getElementById('textInput').value;
         //let input = "EQAAAAA= EQgAAAA= EQEAAAA= ERAAAAA= EQQAAAA= ERgAAAA= EQgAAAA= ERkAAAA= oAIAfSU= oBwAYSY= oBwAdyY= oBwAcyU= oAIAaCU= oAIAaSU= oAIAfig= khwAAQIBAAEQAAhn0zJTAAA= kSwAcCUAAAAAAAA= kSoAcCYgAAAAAAA= EQQAAAA= EQwAAAA= kScBRCEhAAAAAAA= khwAAQIBAAEQAAhn0zJTAAA= oAIASSE=";
@@ -148,9 +147,6 @@ Base64:<br> <label for="textInput"></label><textarea id="textInput"></textarea> 
         return bytes;
     }
 </script>
-
-
-<script src="decoder.js"></script>
 
 </body>
 </html>
